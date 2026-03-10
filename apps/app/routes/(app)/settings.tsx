@@ -15,12 +15,15 @@ import { Bell, CreditCard, Palette, Shield, User } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { useBillingQuery } from "@/lib/queries/billing";
 import { useSessionQuery } from "@/lib/queries/session";
+import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/(app)/settings")({
   component: Settings,
 });
 
 function Settings() {
+  const { theme, setTheme } = useTheme();
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -134,7 +137,13 @@ function Settings() {
                   Toggle dark mode theme
                 </p>
               </div>
-              <Switch id="dark-mode" />
+              <Switch
+                id="dark-mode"
+                checked={theme === "dark"}
+                onCheckedChange={(checked: boolean) =>
+                  setTheme(checked ? "dark" : "light")
+                }
+              />
             </div>
           </CardContent>
         </Card>

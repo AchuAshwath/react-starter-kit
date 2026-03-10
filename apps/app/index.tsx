@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { NotFound } from "./components/not-found";
 import { queryClient } from "./lib/query";
 import { routeTree } from "./lib/routeTree.gen";
+import { ThemeProvider } from "./lib/theme";
 import "./styles/globals.css";
 
 const router = createRouter({
@@ -21,7 +22,9 @@ const root = createRoot(container!);
 root.render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <ThemeProvider>
+        <RouterProvider router={router} />
+      </ThemeProvider>
       {import.meta.env.DEV && (
         <ReactQueryDevtools
           initialIsOpen={false}
