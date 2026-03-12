@@ -1,10 +1,12 @@
 import {
   createContext,
   type ReactNode,
+  use,
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
-  use,
 } from "react";
 
 type Theme = "light" | "dark";
@@ -22,9 +24,13 @@ const STORAGE_KEY = "app-theme";
 function getInitialTheme(): Theme {
   if (typeof window === "undefined") return "light";
 
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  if (stored === "light" || stored === "dark") {
-    return stored;
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored === "light" || stored === "dark") {
+      return stored;
+    }
+  } catch {
+    // Continue with system preference fallback.
   }
 
   if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
@@ -37,7 +43,7 @@ function getInitialTheme(): Theme {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement;
 
     if (theme === "dark") {
@@ -46,12 +52,33 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       root.classList.remove("dark");
     }
 
-    window.localStorage.setItem(STORAGE_KEY, theme);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, theme);
+    } catch {
+      // Ignore storage write failures (e.g., private browsing mode).
+    }
   }, [theme]);
 
-  const toggleTheme = () => {
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY) return;
+      if (event.newValue === "light" || event.newValue === "dark") {
+        setTheme(event.newValue);
+        return;
+      }
+
+      setTheme(getInitialTheme());
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+
+  const toggleTheme = useCallback(() => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
-  };
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -59,7 +86,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setTheme,
       toggleTheme,
     }),
-    [theme, setTheme, toggleTheme],
+    [theme],
   );
 
   return <ThemeContext value={value}>{children}</ThemeContext>;
