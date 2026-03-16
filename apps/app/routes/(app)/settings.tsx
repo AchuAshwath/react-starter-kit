@@ -1,3 +1,7 @@
+import { auth } from "@/lib/auth";
+import { useBillingQuery } from "@/lib/queries/billing";
+import { useSessionQuery } from "@/lib/queries/session";
+import { type ThemePreference, useTheme } from "@/lib/theme";
 import {
   Button,
   Card,
@@ -7,22 +11,43 @@ import {
   CardTitle,
   Input,
   Label,
+  RadioGroup,
+  RadioGroupItem,
   Separator,
   Switch,
 } from "@repo/ui";
 import { createFileRoute } from "@tanstack/react-router";
-import { Bell, CreditCard, Palette, Shield, User } from "lucide-react";
-import { auth } from "@/lib/auth";
-import { useBillingQuery } from "@/lib/queries/billing";
-import { useSessionQuery } from "@/lib/queries/session";
-import { useTheme } from "@/lib/theme";
+import {
+  Bell,
+  CreditCard,
+  Monitor,
+  Moon,
+  Palette,
+  Shield,
+  Sun,
+  User,
+} from "lucide-react";
 
 export const Route = createFileRoute("/(app)/settings")({
   component: Settings,
 });
 
 function Settings() {
-  const { theme, setTheme } = useTheme();
+  const { preference, setPreference } = useTheme();
+
+  function handlePreferenceChange(value: ThemePreference) {
+    setPreference(value);
+  }
+
+  const themeOptions: Array<{
+    value: ThemePreference;
+    label: string;
+    icon: typeof Sun;
+  }> = [
+    { value: "light", label: "Light", icon: Sun },
+    { value: "dark", label: "Dark", icon: Moon },
+    { value: "system", label: "System", icon: Monitor },
+  ];
 
   return (
     <div className="p-6 space-y-6">
@@ -132,18 +157,45 @@ function Settings() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="dark-mode">Dark Mode</Label>
+                <Label>Theme</Label>
                 <p className="text-sm text-muted-foreground">
-                  Toggle dark mode theme
+                  Choose light, dark, or follow your OS setting.
                 </p>
               </div>
-              <Switch
-                id="dark-mode"
-                checked={theme === "dark"}
-                onCheckedChange={(checked: boolean) =>
-                  setTheme(checked ? "dark" : "light")
+              <RadioGroup
+                value={preference}
+                onValueChange={(value) =>
+                  handlePreferenceChange(value as ThemePreference)
                 }
-              />
+                aria-label="Theme preference"
+                className="inline-flex items-center gap-1 rounded-lg border bg-muted p-1"
+              >
+                {themeOptions.map((option) => {
+                  const Icon = option.icon;
+                  const isSelected = preference === option.value;
+
+                  return (
+                    <Label
+                      key={option.value}
+                      htmlFor={`theme-${option.value}`}
+                      className={[
+                        "inline-flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors",
+                        isSelected
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground focus-within:text-foreground",
+                      ].join(" ")}
+                    >
+                      <RadioGroupItem
+                        id={`theme-${option.value}`}
+                        value={option.value}
+                        aria-label={option.label}
+                        className="sr-only"
+                      />
+                      <Icon className="h-4 w-4" />
+                    </Label>
+                  );
+                })}
+              </RadioGroup>
             </div>
           </CardContent>
         </Card>
