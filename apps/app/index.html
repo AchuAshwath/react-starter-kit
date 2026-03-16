@@ -16,7 +16,6 @@
     <meta name="theme-color" content="#fafafa" />
     <script>
       (() => {
-        // Keep this bootstrap logic in sync with runtime theme resolution in lib/theme.tsx.
         const STORAGE_KEY = "app-theme-preference";
         const LEGACY_STORAGE_KEY = "app-theme";
         const LIGHT_THEME_COLOR = "#fafafa";
@@ -56,7 +55,10 @@
         }
 
         const theme = preference === "system" ? getSystemTheme() : preference;
-        document.documentElement.classList.toggle("dark", theme === "dark");
+        const root = document.documentElement;
+        root.dataset.themeColorLight = LIGHT_THEME_COLOR;
+        root.dataset.themeColorDark = DARK_THEME_COLOR;
+        root.classList.toggle("dark", theme === "dark");
 
         const meta = document.querySelector('meta[name="theme-color"]');
         meta?.setAttribute(

@@ -21,8 +21,16 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 const STORAGE_KEY = "app-theme-preference";
 const LEGACY_STORAGE_KEY = "app-theme";
-const LIGHT_THEME_COLOR = "#fafafa";
-const DARK_THEME_COLOR = "#0f0f0f";
+const FALLBACK_LIGHT_THEME_COLOR = "#fafafa";
+const FALLBACK_DARK_THEME_COLOR = "#0f0f0f";
+
+function getThemeColor(theme: Theme): string {
+  const rootDataset = document.documentElement.dataset;
+  const light = rootDataset.themeColorLight || FALLBACK_LIGHT_THEME_COLOR;
+  const dark = rootDataset.themeColorDark || FALLBACK_DARK_THEME_COLOR;
+
+  return theme === "dark" ? dark : light;
+}
 
 // Keep this runtime resolution in sync with the inline bootstrap script in index.html.
 
@@ -79,10 +87,7 @@ function resolveTheme(preference: ThemePreference, systemTheme: Theme): Theme {
 function setThemeColorMeta(theme: Theme) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (!meta) return;
-  meta.setAttribute(
-    "content",
-    theme === "dark" ? DARK_THEME_COLOR : LIGHT_THEME_COLOR,
-  );
+  meta.setAttribute("content", getThemeColor(theme));
 }
 
 function applyThemeWithoutTransitions(theme: Theme) {

@@ -84,6 +84,8 @@ describe("ThemeProvider", () => {
 
     window.localStorage.clear();
     document.documentElement.classList.remove("dark");
+    document.documentElement.dataset.themeColorLight = "#fafafa";
+    document.documentElement.dataset.themeColorDark = "#0f0f0f";
 
     const existingMeta = document.querySelector('meta[name="theme-color"]');
     if (!existingMeta) {
@@ -112,6 +114,9 @@ describe("ThemeProvider", () => {
       writable: true,
       value: originalLocalStorage,
     });
+
+    delete document.documentElement.dataset.themeColorLight;
+    delete document.documentElement.dataset.themeColorDark;
 
     vi.restoreAllMocks();
   });

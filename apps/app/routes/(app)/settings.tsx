@@ -11,11 +11,10 @@ import {
   CardTitle,
   Input,
   Label,
-  RadioGroup,
-  RadioGroupItem,
   Separator,
   Switch,
 } from "@repo/ui";
+import { useCallback, useId, useRef } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Bell,
@@ -32,22 +31,62 @@ export const Route = createFileRoute("/(app)/settings")({
   component: Settings,
 });
 
+const THEME_OPTIONS: Array<{
+  value: ThemePreference;
+  label: string;
+  icon: typeof Sun;
+}> = [
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "System", icon: Monitor },
+];
+
 function Settings() {
   const { preference, setPreference } = useTheme();
+  const themeOptionRef = useRef<Array<HTMLButtonElement | null>>([]);
+  const themeLabelId = useId();
 
-  function handlePreferenceChange(value: ThemePreference) {
-    setPreference(value);
-  }
+  const setOptionRef = useCallback(
+    (index: number, el: HTMLButtonElement | null) => {
+      themeOptionRef.current[index] = el;
+    },
+    [],
+  );
 
-  const themeOptions: Array<{
-    value: ThemePreference;
-    label: string;
-    icon: typeof Sun;
-  }> = [
-    { value: "light", label: "Light", icon: Sun },
-    { value: "dark", label: "Dark", icon: Moon },
-    { value: "system", label: "System", icon: Monitor },
-  ];
+  const handleThemeKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+      const isNextKey = event.key === "ArrowRight" || event.key === "ArrowDown";
+      const isPrevKey = event.key === "ArrowLeft" || event.key === "ArrowUp";
+
+      if (
+        !isNextKey &&
+        !isPrevKey &&
+        event.key !== "Home" &&
+        event.key !== "End"
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+
+      let nextIndex = index;
+
+      if (isNextKey) {
+        nextIndex = (index + 1) % THEME_OPTIONS.length;
+      } else if (isPrevKey) {
+        nextIndex = (index - 1 + THEME_OPTIONS.length) % THEME_OPTIONS.length;
+      } else if (event.key === "Home") {
+        nextIndex = 0;
+      } else if (event.key === "End") {
+        nextIndex = THEME_OPTIONS.length - 1;
+      }
+
+      const nextOption = THEME_OPTIONS[nextIndex];
+      setPreference(nextOption.value);
+      themeOptionRef.current[nextIndex]?.focus();
+    },
+    [setPreference],
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -157,45 +196,44 @@ function Settings() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Theme</Label>
+                <Label id={themeLabelId}>Theme</Label>
                 <p className="text-sm text-muted-foreground">
                   Choose light, dark, or follow your OS setting.
                 </p>
               </div>
-              <RadioGroup
-                value={preference}
-                onValueChange={(value) =>
-                  handlePreferenceChange(value as ThemePreference)
-                }
-                aria-label="Theme preference"
+              <div
+                role="radiogroup"
+                aria-labelledby={themeLabelId}
                 className="inline-flex items-center gap-1 rounded-lg border bg-muted p-1"
               >
-                {themeOptions.map((option) => {
+                {THEME_OPTIONS.map((option, index) => {
                   const Icon = option.icon;
                   const isSelected = preference === option.value;
 
                   return (
-                    <Label
+                    <button
                       key={option.value}
-                      htmlFor={`theme-${option.value}`}
+                      type="button"
+                      role="radio"
+                      ref={(el) => setOptionRef(index, el)}
+                      onClick={() => setPreference(option.value)}
+                      onKeyDown={(event) => handleThemeKeyDown(event, index)}
+                      tabIndex={isSelected ? 0 : -1}
                       className={[
-                        "inline-flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors",
+                        "inline-flex size-11 cursor-pointer items-center justify-center rounded-md border border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                         isSelected
                           ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground focus-within:text-foreground",
+                          : "text-muted-foreground hover:text-foreground",
                       ].join(" ")}
+                      title={option.label}
+                      aria-label={option.label}
+                      aria-checked={isSelected}
                     >
-                      <RadioGroupItem
-                        id={`theme-${option.value}`}
-                        value={option.value}
-                        aria-label={option.label}
-                        className="sr-only"
-                      />
                       <Icon className="h-4 w-4" />
-                    </Label>
+                    </button>
                   );
                 })}
-              </RadioGroup>
+              </div>
             </div>
           </CardContent>
         </Card>
