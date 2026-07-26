@@ -4,7 +4,8 @@ shadcn/ui component library (new-york style, Radix primitives, Tailwind v4). Con
 
 - Only generic primitives belong here. If a component imports a route, a query, or the session, it belongs in `apps/app/components/` instead.
 - Nothing here imports from `apps/` or `db/`. The package must stay droppable into another app as-is.
-- `@/` resolves to the package root (`packages/ui/tsconfig.json` maps `@/*` → `./*`). `@/lib/utils` is this package's `lib/utils.ts`, not the app's. Leave CLI-generated imports as they are — rewriting them to `@repo/ui` creates a cycle.
+- `@/` is only safe for `@/lib/utils`. It resolves via each _consumer's_ tsconfig (both apps map `@/*` to their own root), and it works solely because every consumer keeps a `lib/utils` re-export shim. Keep that form — the CLI regenerates it, and rewriting it to `@repo/ui` creates a cycle.
+- Import one component from another **relatively** (`./toggle`). The CLI emits `@/components/toggle`, which resolves into the consuming app and fails the build there — `apps/web` has no `components/toggle`. Fix it after every `bun ui:add`/`ui:update`.
 
 ## Adding and Updating Components
 
