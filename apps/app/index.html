@@ -14,57 +14,35 @@
     <meta property="og:url" content="" />
     <meta property="og:image" content="" />
     <meta name="theme-color" content="#fafafa" />
+
+    <!--
+      Apply the saved theme before first paint, otherwise a dark-mode user sees
+      a white flash while the bundle loads. Mirrors apps/app/lib/theme.tsx: same
+      storage key, same JSON encoding (Jotai's atomWithStorage).
+
+      Both hexes repeat --theme-color from globals.css – light on the meta tag
+      above, dark here. Stylesheets aren't parsed yet, so this script can't read
+      them; ThemeSync takes over once React mounts.
+    -->
     <script>
       (() => {
-        const STORAGE_KEY = "app-theme-preference";
-        const LEGACY_STORAGE_KEY = "app-theme";
-        const LIGHT_THEME_COLOR = "#fafafa";
-        const DARK_THEME_COLOR = "#0f0f0f";
-
-        function parsePreference(value) {
-          if (value === "light" || value === "dark" || value === "system") {
-            return value;
-          }
-          return null;
-        }
-
-        function getSystemTheme() {
-          return window.matchMedia?.("(prefers-color-scheme: dark)").matches
-            ? "dark"
-            : "light";
-        }
-
-        let preference = "system";
-
+        let preference;
         try {
-          const stored = parsePreference(
-            window.localStorage.getItem(STORAGE_KEY),
-          );
-          if (stored) {
-            preference = stored;
-          } else {
-            const legacy = parsePreference(
-              window.localStorage.getItem(LEGACY_STORAGE_KEY),
-            );
-            if (legacy === "light" || legacy === "dark") {
-              preference = legacy;
-            }
-          }
+          preference = JSON.parse(localStorage.getItem("theme"));
         } catch {
-          preference = "system";
+          // Storage unavailable or corrupt – fall back to the OS setting.
         }
-
-        const theme = preference === "system" ? getSystemTheme() : preference;
-        const root = document.documentElement;
-        root.dataset.themeColorLight = LIGHT_THEME_COLOR;
-        root.dataset.themeColorDark = DARK_THEME_COLOR;
-        root.classList.toggle("dark", theme === "dark");
-
-        const meta = document.querySelector('meta[name="theme-color"]');
-        meta?.setAttribute(
-          "content",
-          theme === "dark" ? DARK_THEME_COLOR : LIGHT_THEME_COLOR,
-        );
+        const dark =
+          preference === "dark" ||
+          (preference !== "light" &&
+            matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.classList.toggle("dark", dark);
+        document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        if (dark) {
+          document
+            .querySelector('meta[name="theme-color"]')
+            .setAttribute("content", "#0f0f0f");
+        }
       })();
     </script>
 

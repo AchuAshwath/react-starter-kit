@@ -40,7 +40,7 @@ bun ui:add <component>         # Add shadcn/ui component to packages/ui
 - API worker has `nodejs_compat` enabled; web and app workers do NOT.
 - Web worker routes: `/api/*` → API worker, app routes → App worker, static → assets.
 - Service bindings connect workers internally (no public cross-worker URLs).
-- Database, auth, routing, and tRPC conventions are in subdirectory `AGENTS.md` files.
+- Per-workspace conventions live in subdirectory `AGENTS.md` files: `apps/api/` (tRPC, auth), `apps/app/` (routing, theming), `db/` (schema), `packages/ui/` (components).
 
 ## Design Philosophy
 

@@ -28,6 +28,15 @@ Client-side SPA — no SSR. All rendering happens in the browser.
 - Route context: `Route.useSearch()` for search params, `Route.useRouteContext()` for route data.
 - Jotai store available for cross-route UI state (modals, sidebar).
 
+## Theming
+
+- `<html>` is written by exactly two things: the inline script in `index.html` (pre-paint) and `<ThemeSync />` in `lib/theme.tsx` (everything after). Read via `useTheme()`; never toggle the class from a component.
+- `preference` is what the user chose (`light` | `dark` | `system`); `theme` is the resolved value (`light` | `dark`) and is derived, never stored.
+- Mounting never writes to storage — the default stays absent until the user picks. An absent key and a stored `"system"` behave identically, so don't build logic on the difference.
+- That script duplicates the resolution logic on purpose — it runs before the bundle, so dark-mode users don't get a white flash. Its storage key and JSON encoding must match `theme.tsx`; `theme.test.tsx` guards the pair.
+- `systemThemeAtom` is lazy so its first read happens during render. Seeding it with a value would repaint a frame after the inline script already got it right — `theme.test.tsx` guards this.
+- `--theme-color` in `styles/globals.css` is the source for `<meta name="theme-color">`. `index.html` (both values) and `public/site.manifest` (light) must repeat it, since they load before any stylesheet. Change all three together — no test catches this drift.
+
 ## Error Handling
 
 - `AppErrorBoundary` (root) shows generic error UI. `AuthErrorBoundary` (protected routes) catches 401/UNAUTHORIZED and shows sign-in recovery UI; 403 falls through to generic handler.

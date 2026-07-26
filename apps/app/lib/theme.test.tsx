@@ -1,281 +1,222 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { Provider } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ThemeProvider, useTheme } from "./theme";
+import indexHtml from "../index.html?raw";
+import { ThemeSync, useTheme } from "./theme";
+
+const root = document.documentElement;
+
+const mediaListeners = new Set<(event: MediaQueryListEvent) => void>();
+let systemPrefersDark = false;
+
+function setSystemPrefersDark(matches: boolean) {
+  systemPrefersDark = matches;
+  act(() => {
+    mediaListeners.forEach((listener) =>
+      listener({ matches } as MediaQueryListEvent),
+    );
+  });
+}
 
 function ThemeProbe() {
   const { theme, preference, setPreference } = useTheme();
 
   return (
     <>
-      <div data-testid="resolved-theme">{theme}</div>
-      <div data-testid="preference">{preference}</div>
-      <button onClick={() => setPreference("light")} type="button">
-        set-light
+      <span data-testid="theme">{theme}</span>
+      <span data-testid="preference">{preference}</span>
+      <button type="button" onClick={() => setPreference("dark")}>
+        dark
       </button>
-      <button onClick={() => setPreference("dark")} type="button">
-        set-dark
-      </button>
-      <button onClick={() => setPreference("system")} type="button">
-        set-system
+      <button type="button" onClick={() => setPreference("system")}>
+        system
       </button>
     </>
   );
 }
 
-describe("ThemeProvider", () => {
-  const storage = new Map<string, string>();
-  let originalMatchMedia: typeof window.matchMedia | undefined;
-  let originalLocalStorage: Storage;
+/** A fresh Jotai store per render, so atoms re-read storage instead of reusing state. */
+function renderTheme() {
+  return render(
+    <Provider>
+      <ThemeSync />
+      <ThemeProbe />
+    </Provider>,
+  );
+}
 
-  function createMediaQueryList(matches: boolean): MediaQueryList {
-    return {
-      matches,
-      media: "(prefers-color-scheme: dark)",
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    } as unknown as MediaQueryList;
-  }
+function click(name: string) {
+  fireEvent.click(screen.getByRole("button", { name }));
+}
 
-  const localStorageMock: Storage = {
-    getItem: (key: string) => storage.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      storage.set(key, value);
-    },
-    removeItem: (key: string) => {
-      storage.delete(key);
-    },
-    clear: () => {
-      storage.clear();
-    },
-    key: (index: number) => {
-      const keys = Array.from(storage.keys());
-      return keys[index] ?? null;
-    },
-    get length() {
-      return storage.size;
-    },
-  };
+function syncFromOtherTab(value: string) {
+  fireEvent(
+    window,
+    new StorageEvent("storage", {
+      key: "theme",
+      newValue: JSON.stringify(value),
+      storageArea: localStorage,
+    }),
+  );
+}
 
+describe("theme", () => {
   beforeEach(() => {
-    originalMatchMedia = window.matchMedia;
-    originalLocalStorage = window.localStorage;
+    mediaListeners.clear();
+    systemPrefersDark = false;
+    localStorage.clear();
+    root.classList.remove("dark");
+    root.style.colorScheme = "";
 
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      writable: true,
-      value: vi.fn().mockReturnValue(createMediaQueryList(false)),
-    });
-
-    Object.defineProperty(window, "localStorage", {
-      configurable: true,
-      writable: true,
-      value: localStorageMock,
-    });
-
-    window.localStorage.clear();
-    document.documentElement.classList.remove("dark");
-    document.documentElement.dataset.themeColorLight = "#fafafa";
-    document.documentElement.dataset.themeColorDark = "#0f0f0f";
-
-    const existingMeta = document.querySelector('meta[name="theme-color"]');
-    if (!existingMeta) {
-      const meta = document.createElement("meta");
-      meta.setAttribute("name", "theme-color");
-      meta.setAttribute("content", "#fafafa");
-      document.head.appendChild(meta);
-    } else {
-      existingMeta.setAttribute("content", "#fafafa");
-    }
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        get matches() {
+          return systemPrefersDark;
+        },
+        addEventListener: (_: string, cb: (e: MediaQueryListEvent) => void) => {
+          mediaListeners.add(cb);
+        },
+        removeEventListener: (
+          _: string,
+          cb: (e: MediaQueryListEvent) => void,
+        ) => {
+          mediaListeners.delete(cb);
+        },
+      })),
+    );
   });
 
   afterEach(() => {
-    cleanup();
-
-    if (originalMatchMedia) {
-      Object.defineProperty(window, "matchMedia", {
-        configurable: true,
-        writable: true,
-        value: originalMatchMedia,
-      });
-    }
-
-    Object.defineProperty(window, "localStorage", {
-      configurable: true,
-      writable: true,
-      value: originalLocalStorage,
-    });
-
-    delete document.documentElement.dataset.themeColorLight;
-    delete document.documentElement.dataset.themeColorDark;
-
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("defaults to system preference when nothing is stored", () => {
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      writable: true,
-      value: vi.fn().mockReturnValue(createMediaQueryList(true)),
-    });
-
-    render(
-      <ThemeProvider>
-        <ThemeProbe />
-      </ThemeProvider>,
-    );
+  it("follows the OS setting by default", () => {
+    systemPrefersDark = true;
+    renderTheme();
 
     expect(screen.getByTestId("preference")).toHaveTextContent("system");
-    expect(screen.getByTestId("resolved-theme")).toHaveTextContent("dark");
-    expect(window.localStorage.getItem("app-theme-preference")).toBe("system");
+    expect(screen.getByTestId("theme")).toHaveTextContent("dark");
+    // Mounting has no storage side effects – the default is not written back.
+    expect(localStorage.getItem("theme")).toBeNull();
   });
 
-  it("uses persisted explicit preference", () => {
-    window.localStorage.setItem("app-theme-preference", "dark");
+  it("does not undo what the bootstrap script already applied", () => {
+    // A system-dark user, with the class already on <html> as index.html leaves
+    // it. Resolving the OS setting a frame late here would repaint to light.
+    systemPrefersDark = true;
+    root.classList.add("dark");
 
-    render(
-      <ThemeProvider>
-        <ThemeProbe />
-      </ThemeProvider>,
-    );
+    const applied: (boolean | undefined)[] = [];
+    const toggle = root.classList.toggle.bind(root.classList);
+    vi.spyOn(root.classList, "toggle").mockImplementation((token, force) => {
+      applied.push(force);
+      return toggle(token, force);
+    });
+
+    renderTheme();
+
+    expect(applied).toEqual([true]);
+  });
+
+  it("restores a persisted preference over the OS setting", () => {
+    localStorage.setItem("theme", JSON.stringify("dark"));
+    renderTheme();
+
+    expect(screen.getByTestId("theme")).toHaveTextContent("dark");
+    expect(root.classList.contains("dark")).toBe(true);
+    expect(root.style.colorScheme).toBe("dark");
+  });
+
+  it("ignores an unrecognized persisted value", () => {
+    localStorage.setItem("theme", JSON.stringify("sepia"));
+    renderTheme();
+
+    expect(screen.getByTestId("preference")).toHaveTextContent("system");
+  });
+
+  it("persists the preference and updates the document", () => {
+    renderTheme();
+
+    click("dark");
+    expect(screen.getByTestId("theme")).toHaveTextContent("dark");
+    expect(root.classList.contains("dark")).toBe(true);
+    expect(localStorage.getItem("theme")).toBe(JSON.stringify("dark"));
+
+    click("system");
+    expect(screen.getByTestId("theme")).toHaveTextContent("light");
+    expect(root.classList.contains("dark")).toBe(false);
+    expect(root.style.colorScheme).toBe("light");
+  });
+
+  it("tracks OS changes while following the system", () => {
+    renderTheme();
+    expect(screen.getByTestId("theme")).toHaveTextContent("light");
+
+    setSystemPrefersDark(true);
+
+    expect(screen.getByTestId("theme")).toHaveTextContent("dark");
+    expect(root.classList.contains("dark")).toBe(true);
+  });
+
+  it("ignores OS changes once a preference is set", () => {
+    renderTheme();
+
+    click("dark");
+    setSystemPrefersDark(false);
+
+    expect(screen.getByTestId("theme")).toHaveTextContent("dark");
+  });
+
+  it("syncs across tabs via storage events", () => {
+    renderTheme();
+
+    syncFromOtherTab("dark");
 
     expect(screen.getByTestId("preference")).toHaveTextContent("dark");
-    expect(screen.getByTestId("resolved-theme")).toHaveTextContent("dark");
-    expect(document.documentElement.classList.contains("dark")).toBe(true);
-    expect(
-      document
-        .querySelector('meta[name="theme-color"]')
-        ?.getAttribute("content"),
-    ).toBe("#0f0f0f");
+    expect(root.classList.contains("dark")).toBe(true);
   });
 
-  it("migrates legacy app-theme values", () => {
-    window.localStorage.setItem("app-theme", "light");
+  it("ignores an unrecognized value from another tab", () => {
+    renderTheme();
 
-    render(
-      <ThemeProvider>
-        <ThemeProbe />
-      </ThemeProvider>,
-    );
-
-    expect(screen.getByTestId("preference")).toHaveTextContent("light");
-    expect(window.localStorage.getItem("app-theme-preference")).toBe("light");
-  });
-
-  it("updates preference and stores only the preference", () => {
-    render(
-      <ThemeProvider>
-        <ThemeProbe />
-      </ThemeProvider>,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "set-dark" }));
-    expect(screen.getByTestId("preference")).toHaveTextContent("dark");
-    expect(window.localStorage.getItem("app-theme-preference")).toBe("dark");
-    expect(
-      document
-        .querySelector('meta[name="theme-color"]')
-        ?.getAttribute("content"),
-    ).toBe("#0f0f0f");
-
-    fireEvent.click(screen.getByRole("button", { name: "set-light" }));
-    expect(screen.getByTestId("preference")).toHaveTextContent("light");
-    expect(window.localStorage.getItem("app-theme-preference")).toBe("light");
-    expect(
-      document
-        .querySelector('meta[name="theme-color"]')
-        ?.getAttribute("content"),
-    ).toBe("#fafafa");
-
-    fireEvent.click(screen.getByRole("button", { name: "set-system" }));
-    expect(screen.getByTestId("preference")).toHaveTextContent("system");
-    expect(window.localStorage.getItem("app-theme-preference")).toBe("system");
-  });
-
-  it("reacts to OS theme changes while preference is system", async () => {
-    const listeners = new Set<(event: MediaQueryListEvent) => void>();
-
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      writable: true,
-      value: vi.fn().mockReturnValue({
-        ...createMediaQueryList(false),
-        addEventListener: (
-          _: string,
-          cb: (event: MediaQueryListEvent) => void,
-        ) => listeners.add(cb),
-        removeEventListener: (
-          _: string,
-          cb: (event: MediaQueryListEvent) => void,
-        ) => listeners.delete(cb),
-      }),
-    });
-
-    render(
-      <ThemeProvider>
-        <ThemeProbe />
-      </ThemeProvider>,
-    );
-
-    expect(screen.getByTestId("resolved-theme")).toHaveTextContent("light");
-
-    listeners.forEach((listener) =>
-      listener({ matches: true } as MediaQueryListEvent),
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("resolved-theme")).toHaveTextContent("dark");
-      expect(document.documentElement.classList.contains("dark")).toBe(true);
-      expect(
-        document
-          .querySelector('meta[name="theme-color"]')
-          ?.getAttribute("content"),
-      ).toBe("#0f0f0f");
-    });
-  });
-
-  it("syncs preference across tabs via storage events", async () => {
-    render(
-      <ThemeProvider>
-        <ThemeProbe />
-      </ThemeProvider>,
-    );
-
-    const event = new Event("storage");
-    Object.defineProperty(event, "key", { value: "app-theme-preference" });
-    Object.defineProperty(event, "newValue", { value: "dark" });
-    window.dispatchEvent(event);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("preference")).toHaveTextContent("dark");
-      expect(screen.getByTestId("resolved-theme")).toHaveTextContent("dark");
-    });
-  });
-
-  it("does not overwrite preference with resolved system theme", () => {
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      writable: true,
-      value: vi.fn().mockReturnValue(createMediaQueryList(true)),
-    });
-
-    render(
-      <ThemeProvider>
-        <ThemeProbe />
-      </ThemeProvider>,
-    );
+    // Sync to dark first, so falling back to "system" can't pass by doing nothing.
+    syncFromOtherTab("dark");
+    syncFromOtherTab("sepia");
 
     expect(screen.getByTestId("preference")).toHaveTextContent("system");
-    expect(screen.getByTestId("resolved-theme")).toHaveTextContent("dark");
-    expect(window.localStorage.getItem("app-theme-preference")).toBe("system");
+    expect(screen.getByTestId("theme")).toHaveTextContent("light");
+  });
+
+  it("still applies the theme when persistence fails", () => {
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    renderTheme();
+
+    click("dark");
+
+    expect(screen.getByTestId("theme")).toHaveTextContent("dark");
+    expect(root.classList.contains("dark")).toBe(true);
+  });
+
+  it("survives a browser that denies storage access", () => {
+    vi.spyOn(localStorage, "getItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+
+    expect(() => renderTheme()).not.toThrow();
+    expect(screen.getByTestId("preference")).toHaveTextContent("system");
+  });
+
+  it("shares its storage contract with the pre-paint bootstrap", () => {
+    // index.html resolves the theme before the bundle loads, and a mismatch is
+    // invisible in CI and to light-mode developers – it only shows up as a
+    // white flash for dark-mode users. The tests above pin theme.tsx to this
+    // same key and encoding, so together they hold the two files in step.
+    expect(indexHtml).toContain('localStorage.getItem("theme")');
+    expect(indexHtml).toContain("JSON.parse");
+    expect(indexHtml).toContain("(prefers-color-scheme: dark)");
   });
 });

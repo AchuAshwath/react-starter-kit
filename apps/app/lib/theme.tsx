@@ -1,189 +1,141 @@
-import {
-  createContext,
-  type ReactNode,
-  use,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useState,
-} from "react";
+import { atom, useAtom, useAtomValue } from "jotai";
+import { atomWithLazy, atomWithStorage, createJSONStorage } from "jotai/utils";
+import { useLayoutEffect } from "react";
 
-type Theme = "light" | "dark";
+export type Theme = "light" | "dark";
 export type ThemePreference = Theme | "system";
 
-interface ThemeContextValue {
-  theme: Theme;
-  preference: ThemePreference;
-  setPreference: (preference: ThemePreference) => void;
+/**
+ * Shared with the inline bootstrap script in `index.html`, which applies the
+ * theme before first paint. Keep the key and its JSON encoding in sync.
+ */
+const STORAGE_KEY = "theme";
+
+const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
+
+const jsonStorage = createJSONStorage<ThemePreference>();
+
+function toPreference(
+  value: unknown,
+  fallback: ThemePreference,
+): ThemePreference {
+  return value === "light" || value === "dark" || value === "system"
+    ? value
+    : fallback;
 }
 
-const ThemeContext = createContext<ThemeContextValue | null>(null);
+/**
+ * Persisted preference, mirrored across tabs by `atomWithStorage`.
+ *
+ * The three overrides exist because anything can end up in `localStorage`:
+ * both read paths are validated (the storage-event path bypasses `getItem`),
+ * and both directions swallow failures. The read especially – `getOnInit` runs
+ * it while this module evaluates, so a browser that denies storage access would
+ * otherwise take down the bundle before anything renders.
+ */
+const themePreferenceAtom = atomWithStorage<ThemePreference>(
+  STORAGE_KEY,
+  "system",
+  {
+    ...jsonStorage,
+    getItem: (key, initialValue) => {
+      try {
+        return toPreference(
+          jsonStorage.getItem(key, initialValue),
+          initialValue,
+        );
+      } catch {
+        return initialValue;
+      }
+    },
+    setItem: (key, value) => {
+      try {
+        jsonStorage.setItem(key, value);
+      } catch {
+        // Persistence is best-effort; the choice still applies this session.
+      }
+    },
+    subscribe: (key, callback, initialValue) =>
+      jsonStorage.subscribe?.(
+        key,
+        (value) => callback(toPreference(value, initialValue)),
+        initialValue,
+      ),
+  },
+  { getOnInit: true },
+);
 
-const STORAGE_KEY = "app-theme-preference";
-const LEGACY_STORAGE_KEY = "app-theme";
-const FALLBACK_LIGHT_THEME_COLOR = "#fafafa";
-const FALLBACK_DARK_THEME_COLOR = "#0f0f0f";
+/**
+ * OS color scheme, kept current while any subscriber is mounted. Lazy so the
+ * first read happens during render – seeding it with a guess would repaint the
+ * document a frame after the bootstrap script already got it right.
+ */
+const systemThemeAtom = atomWithLazy<Theme>(() =>
+  window.matchMedia(COLOR_SCHEME_QUERY).matches ? "dark" : "light",
+);
 
-function getThemeColor(theme: Theme): string {
-  const rootDataset = document.documentElement.dataset;
-  const light = rootDataset.themeColorLight || FALLBACK_LIGHT_THEME_COLOR;
-  const dark = rootDataset.themeColorDark || FALLBACK_DARK_THEME_COLOR;
+systemThemeAtom.onMount = (set) => {
+  const media = window.matchMedia(COLOR_SCHEME_QUERY);
+  // Re-read: a change between the lazy init and this subscription is missed.
+  set(media.matches ? "dark" : "light");
 
-  return theme === "dark" ? dark : light;
-}
+  const onChange = (event: MediaQueryListEvent) => {
+    set(event.matches ? "dark" : "light");
+  };
 
-// Keep this runtime resolution in sync with the inline bootstrap script in index.html.
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+};
 
-function getSystemTheme(): Theme {
-  if (typeof window === "undefined") return "light";
+const themeAtom = atom<Theme>((get) => {
+  const preference = get(themePreferenceAtom);
+  return preference === "system" ? get(systemThemeAtom) : preference;
+});
 
-  if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
-    return "dark";
-  }
+/**
+ * Keeps `<html>` in sync with the resolved theme: the `dark` class drives
+ * Tailwind's dark variant, `color-scheme` drives native UI (scrollbars, form
+ * controls), and `theme-color` drives mobile browser chrome.
+ *
+ * Mount near the root. The bootstrap script in `index.html` settles all three
+ * before first paint; this keeps them current afterwards, and catches an OS or
+ * cross-tab change that landed between that script and React starting.
+ */
+export function ThemeSync() {
+  const theme = useAtomValue(themeAtom);
 
-  return "light";
-}
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("dark", theme === "dark");
+    root.style.colorScheme = theme;
 
-function parseThemePreference(value: string | null): ThemePreference | null {
-  if (value === "light" || value === "dark" || value === "system") {
-    return value;
-  }
+    // Derived from CSS rather than repeated here. `index.html` and
+    // `site.manifest` do have to repeat it – they load before any stylesheet –
+    // so `--theme-color` in `globals.css` is the value they must track.
+    const color = getComputedStyle(root)
+      .getPropertyValue("--theme-color")
+      .trim();
+
+    if (color) {
+      document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute("content", color);
+    }
+  }, [theme]);
 
   return null;
 }
 
-function getInitialPreference(): ThemePreference {
-  if (typeof window === "undefined") return "system";
-
-  try {
-    const storedPreference = parseThemePreference(
-      window.localStorage.getItem(STORAGE_KEY),
-    );
-    if (storedPreference) {
-      return storedPreference;
-    }
-
-    const legacyTheme = parseThemePreference(
-      window.localStorage.getItem(LEGACY_STORAGE_KEY),
-    );
-    if (legacyTheme === "light" || legacyTheme === "dark") {
-      return legacyTheme;
-    }
-  } catch {
-    return "system";
-  }
-
-  return "system";
-}
-
-function resolveTheme(preference: ThemePreference, systemTheme: Theme): Theme {
-  if (preference === "system") {
-    return systemTheme;
-  }
-
-  return preference;
-}
-
-function setThemeColorMeta(theme: Theme) {
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (!meta) return;
-  meta.setAttribute("content", getThemeColor(theme));
-}
-
-function applyThemeWithoutTransitions(theme: Theme) {
-  const root = document.documentElement;
-  const style = document.createElement("style");
-  style.textContent = "*{transition:none!important}";
-  document.head.appendChild(style);
-
-  if (theme === "dark") {
-    root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
-  }
-
-  setThemeColorMeta(theme);
-
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      style.remove();
-    });
-  });
-}
-
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [preference, setPreference] =
-    useState<ThemePreference>(getInitialPreference);
-  const [systemTheme, setSystemTheme] = useState<Theme>(getSystemTheme);
-  const theme = useMemo(
-    () => resolveTheme(preference, systemTheme),
-    [preference, systemTheme],
-  );
-
-  useLayoutEffect(() => {
-    applyThemeWithoutTransitions(theme);
-  }, [theme]);
-
-  useEffect(() => {
-    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
-    if (!media) return;
-
-    const onChange = (event: MediaQueryListEvent) => {
-      setSystemTheme(event.matches ? "dark" : "light");
-    };
-
-    media.addEventListener("change", onChange);
-    return () => {
-      media.removeEventListener("change", onChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, preference);
-    } catch {
-      // Ignore storage write failures (e.g., private browsing mode).
-    }
-  }, [preference]);
-
-  useEffect(() => {
-    const onStorage = (event: StorageEvent) => {
-      if (event.key !== STORAGE_KEY && event.key !== LEGACY_STORAGE_KEY) return;
-
-      if (event.key === STORAGE_KEY) {
-        const nextPreference = parseThemePreference(event.newValue) ?? "system";
-        setPreference(nextPreference);
-        return;
-      }
-
-      const legacyTheme = parseThemePreference(event.newValue);
-      if (legacyTheme === "light" || legacyTheme === "dark") {
-        setPreference(legacyTheme);
-      }
-    };
-
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
-
-  const value = useMemo(
-    () => ({
-      theme,
-      preference,
-      setPreference,
-    }),
-    [theme, preference],
-  );
-
-  return <ThemeContext value={value}>{children}</ThemeContext>;
-}
-
-export function useTheme() {
-  const ctx = use(ThemeContext);
-  if (!ctx) {
-    throw new Error("useTheme must be used within a ThemeProvider");
-  }
-  return ctx;
+/**
+ * The return type is written out to keep the atoms an implementation detail:
+ * Jotai's own setter also accepts updater functions and `RESET`, which are
+ * persistence mechanics callers shouldn't reach for.
+ */
+export function useTheme(): {
+  theme: Theme;
+  preference: ThemePreference;
+  setPreference: (preference: ThemePreference) => void;
+} {
+  const [preference, setPreference] = useAtom(themePreferenceAtom);
+  return { theme: useAtomValue(themeAtom), preference, setPreference };
 }

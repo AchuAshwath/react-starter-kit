@@ -44,6 +44,14 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /*
+   * Mobile browser chrome, published via <meta name="theme-color">.
+   * Hex rather than oklch(): browsers ignore a theme-color they can't parse.
+   * index.html (both themes) and public/site.manifest (light) repeat these
+   * values – they load before any stylesheet. Change them together.
+   */
+  --theme-color: #fafafa;
 }
 
 .dark {
@@ -79,6 +87,7 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --theme-color: #0f0f0f;
 }
 
 @layer base {

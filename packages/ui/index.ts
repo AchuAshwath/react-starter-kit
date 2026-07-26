@@ -18,6 +18,8 @@ export * from "./components/separator";
 export * from "./components/skeleton";
 export * from "./components/switch";
 export * from "./components/textarea";
+export * from "./components/toggle";
+export * from "./components/toggle-group";
 
 // Export utilities
 export * from "./lib/utils";
