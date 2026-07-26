@@ -69,7 +69,6 @@ function Settings() {
           </CardContent>
         </Card>
 
-        {/* Billing */}
         <BillingCard />
 
         {/* Notification Settings */}
@@ -129,7 +128,6 @@ function Settings() {
           </CardContent>
         </Card>
 
-        {/* Appearance */}
         <AppearanceCard />
       </div>
     </div>
@@ -267,9 +265,9 @@ function AppearanceCard() {
               Choose light, dark, or follow your OS setting.
             </p>
           </div>
-          {/* type="single" gives radiogroup semantics and arrow-key navigation,
-              so there is no keyboard handling here. It also emits "" when the
-              active item is toggled off, hence the lookup below. */}
+          {/* type="single" brings radiogroup semantics and arrow keys, so no
+              keyboard handling here. It emits "" when the active item is
+              toggled off, which the lookup below ignores. */}
           <ToggleGroup
             type="single"
             value={preference}

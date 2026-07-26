@@ -3,7 +3,7 @@ shadcn/ui component library (new-york style, Radix primitives, Tailwind v4). Con
 ## Scope
 
 - Only generic primitives belong here. If a component imports a route, a query, or the session, it belongs in `apps/app/components/` instead.
-- Nothing here imports from `apps/` or `db/`. The package must stay droppable into another app as-is.
+- Nothing here imports application or domain code (`apps/`, `db/`). Consumers still have to supply the pieces below: a `lib/utils` shim, Tailwind `@source` entries, and the theme tokens.
 - `@/` is only safe for `@/lib/utils`. It resolves via each _consumer's_ tsconfig (both apps map `@/*` to their own root), and it works solely because every consumer keeps a `lib/utils` re-export shim. Keep that form — the CLI regenerates it, and rewriting it to `@repo/ui` creates a cycle.
 - Import one component from another **relatively** (`./toggle`). The CLI emits `@/components/toggle`, which resolves into the consuming app and fails the build there — `apps/web` has no `components/toggle`. Fix it after every `bun ui:add`/`ui:update`.
 
@@ -22,9 +22,9 @@ shadcn/ui component library (new-york style, Radix primitives, Tailwind v4). Con
 ## Styling
 
 - Every component accepts `className` and passes it through `cn()` last — directly, or via the `className` slot on a `cva` variants call — so callers can override defaults without a specificity fight.
-- Use theme tokens (`bg-primary`, `text-muted-foreground`), never raw colors. Token values live in `apps/app/styles/globals.css`; `styles.css` here exists only to satisfy the shadcn CLI.
+- Use theme tokens (`bg-primary`, `text-muted-foreground`), never raw colors. Each consumer defines the values in its own `styles/globals.css` — `apps/app` and `apps/web` keep separate copies, so a palette change means editing both. `styles.css` here exists only to satisfy the shadcn CLI.
 - Class names must appear as complete literals — Tailwind scans text, so `` `bg-${color}-500` `` produces nothing.
-- Consuming apps must `@source` this package's `components/`, `lib/`, and `hooks/` in their Tailwind config.
+- Consuming apps must `@source` every directory here that holds class names, or those classes are stripped from their build.
 
 ## Conventions
 

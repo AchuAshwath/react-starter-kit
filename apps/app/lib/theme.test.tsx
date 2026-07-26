@@ -98,7 +98,7 @@ describe("theme", () => {
 
     expect(screen.getByTestId("preference")).toHaveTextContent("system");
     expect(screen.getByTestId("theme")).toHaveTextContent("dark");
-    // Mounting has no storage side effects – the default is not written back.
+    // The default is never written back.
     expect(localStorage.getItem("theme")).toBeNull();
   });
 
@@ -211,10 +211,9 @@ describe("theme", () => {
   });
 
   it("shares its storage contract with the pre-paint bootstrap", () => {
-    // index.html resolves the theme before the bundle loads, and a mismatch is
-    // invisible in CI and to light-mode developers – it only shows up as a
-    // white flash for dark-mode users. The tests above pin theme.tsx to this
-    // same key and encoding, so together they hold the two files in step.
+    // A mismatch only shows as a white flash for dark-mode users, so nothing
+    // else catches it. The tests above pin theme.tsx to the same key and
+    // encoding, holding the two files in step.
     expect(indexHtml).toContain('localStorage.getItem("theme")');
     expect(indexHtml).toContain("JSON.parse");
     expect(indexHtml).toContain("(prefers-color-scheme: dark)");

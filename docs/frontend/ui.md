@@ -57,9 +57,9 @@ packages/ui/
 └── package.json
 ```
 
-Inside `packages/ui`, the `@/` alias points at the package root – `@/lib/utils` means `packages/ui/lib/utils.ts`, not the app. Components import it that way because that is what the shadcn CLI generates, and it keeps the package self-contained.
+Components import `cn` as `@/lib/utils`, which is what the shadcn CLI generates. That alias resolves through the _consuming_ app's config rather than this package's, and it works only because every app keeps a `lib/utils` re-export shim. One component importing another must therefore use a relative path (`./toggle`) – the CLI's `@/components/…` form resolves into the app and fails the build there.
 
-Everything is re-exported from the package root, so apps import from a single place:
+Components and `cn` are re-exported from the package root, so apps import from a single place:
 
 ```tsx
 import { Button, Card, CardHeader, CardTitle, Input, cn } from "@repo/ui";
@@ -127,7 +127,7 @@ export function SaveButton({ isActive }: { isActive: boolean }) {
 
 ### CSS Variables
 
-Theme colors are defined as CSS custom properties in `apps/app/styles/globals.css` using the [OKLCH](https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/oklch) color space:
+Theme colors are defined as CSS custom properties using the [OKLCH](https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/oklch) color space. Each app owns its own set — `apps/app/styles/globals.css` is shown here, and `apps/web` keeps a matching copy for the marketing site:
 
 ```css
 :root {
@@ -176,7 +176,7 @@ function ThemeButton() {
 }
 ```
 
-The preference and the resolved theme are backed by Jotai atoms rather than a bespoke React context, so `theme` stays a derived value instead of state somebody has to keep in step. The atoms are private – `useTheme()` is the whole public API, and it reads from the `StoreProvider` at the root of `index.tsx` like every other atom in the app.
+The preference and the resolved theme are backed by Jotai atoms rather than a bespoke React context, so `theme` stays a derived value instead of state somebody has to keep in step. The atoms are private – `useTheme()` is the only way app code reads or sets the theme, and it resolves against the `StoreProvider` at the root of `index.tsx` like every other atom in the app.
 
 The preference is persisted to `localStorage` and synced across tabs by [`atomWithStorage`](https://jotai.org/docs/utilities/storage). `<ThemeSync />`, mounted in `apps/app/index.tsx`, mirrors the resolved theme onto `<html>`: the `dark` class, the `color-scheme` property (so scrollbars and native form controls match), and `<meta name="theme-color">` for mobile browser chrome, read from the `--theme-color` variable in `globals.css`.
 

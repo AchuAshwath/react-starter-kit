@@ -30,6 +30,6 @@ lib/              # Utilities (cn function)
 scripts/          # Component management tools
 ```
 
-Consuming apps must `@source` this package's `components/`, `lib/`, and `hooks/` in
-their Tailwind config, or classes used only here are stripped from the build. See
-[apps/app/tailwind.config.css](../../apps/app/tailwind.config.css) for the full list.
+Consuming apps must `@source` every directory here that holds class names, or those
+classes are stripped from their build. See
+[apps/app/tailwind.config.css](../../apps/app/tailwind.config.css) for an example.

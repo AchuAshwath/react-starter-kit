@@ -1,7 +1,8 @@
 /**
  * @file UI component library entrypoint.
  *
- * Re-exports all shadcn/ui components, utilities, and hooks.
+ * Re-exports the installed components and `cn`. Add a line here after
+ * `bun ui:add` – the CLI does not.
  */
 
 export * from "./components/avatar";
@@ -21,7 +22,4 @@ export * from "./components/textarea";
 export * from "./components/toggle";
 export * from "./components/toggle-group";
 
-// Export utilities
 export * from "./lib/utils";
-
-// Export hooks

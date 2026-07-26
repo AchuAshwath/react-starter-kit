@@ -3,8 +3,8 @@ import * as ToggleGroupPrimitive from "@radix-ui/react-toggle-group";
 import { type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
-// Relative, not "@/components/toggle": consumers alias "@/" to their own root,
-// so the CLI's form resolves into the app and breaks the build. See AGENTS.md.
+// Relative, not the CLI's "@/components/toggle": "@/" resolves into the
+// consuming app, which breaks its build. See AGENTS.md.
 import { toggleVariants } from "./toggle";
 
 const ToggleGroupContext = React.createContext<
