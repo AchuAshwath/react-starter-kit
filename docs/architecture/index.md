@@ -34,11 +34,11 @@ sequenceDiagram
 
 ## Workers
 
-| Worker  | Workspace  | Purpose                                               | Has `nodejs_compat` |
-| ------- | ---------- | ----------------------------------------------------- | :-----------------: |
-| **web** | `apps/web` | Edge router – receives all traffic, routes to app/api |         No          |
-| **app** | `apps/app` | SPA static assets (React, TanStack Router)            |         No          |
-| **api** | `apps/api` | Hono server – tRPC, Better Auth, webhooks             |         Yes         |
+| Worker  | Workspace  | Purpose                                                                | Has `nodejs_compat` |
+| ------- | ---------- | ---------------------------------------------------------------------- | :-----------------: |
+| **web** | `apps/web` | Marketing site + edge router – receives all traffic, routes to app/api |         No          |
+| **app** | `apps/app` | SPA static assets (React, TanStack Router)                             |         No          |
+| **api** | `apps/api` | Hono server – tRPC, Better Auth, webhooks                              |         Yes         |
 
 ### Web Worker
 

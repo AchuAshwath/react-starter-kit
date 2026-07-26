@@ -1,6 +1,6 @@
 ## Monorepo Structure
 
-- `apps/web/` — Edge worker; routes traffic to app/api workers via service bindings
+- `apps/web/` — Astro marketing site, served by an edge worker that also routes traffic to the app/api workers via service bindings
 - `apps/app/` — Main SPA (React, TanStack Router file-based routing)
 - `apps/api/` — API server (Hono + tRPC + Better Auth)
 - `apps/email/` — React Email templates (built before API dev server starts)
@@ -36,11 +36,11 @@ bun ui:add <component>         # Add shadcn/ui component to packages/ui
 
 ## Architecture
 
-- Three workers: web (edge router), app (SPA assets), api (Hono server).
+- Three workers: web (marketing site + edge router), app (SPA assets), api (Hono server).
 - API worker has `nodejs_compat` enabled; web and app workers do NOT.
 - Web worker routes: `/api/*` → API worker, app routes → App worker, static → assets.
 - Service bindings connect workers internally (no public cross-worker URLs).
-- Per-workspace conventions live in subdirectory `AGENTS.md` files: `apps/api/` (tRPC, auth), `apps/app/` (routing, theming), `db/` (schema), `packages/ui/` (components).
+- Per-workspace conventions live in subdirectory `AGENTS.md` files: `apps/api/`, `apps/app/`, `db/`, `packages/ui/`.
 
 ## Design Philosophy
 
